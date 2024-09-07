@@ -5,7 +5,10 @@ from youtube_transcript_api._errors import (
     NotTranslatable, TranscriptsDisabled, VideoUnavailable, InvalidVideoId,
     NoTranscriptAvailable, NoTranscriptFound, TooManyRequests
 )
+import tempfile
 import os
+import json
+from datetime import timedelta
 
 # Function to extract title
 def extract_title(video_info):
@@ -41,7 +44,7 @@ def get_transcripts(video_ids):
     return transcripts
 
 # Function to process transcripts and generate a file
-def process_transcripts(video_links, file_path):
+def process_transcripts(video_links):
     formatted_texts = []
     
     for title, details in video_links.items():
@@ -87,9 +90,12 @@ def process_transcripts(video_links, file_path):
             formatted_texts.append(" ".join(current_text))
             formatted_texts.append("")
 
-    # Write the formatted text to the specified file path
-    with open(file_path, 'w', encoding='utf-8') as file:
-        file.write("\n".join(formatted_texts))
+    # Create a temporary file
+    with tempfile.NamedTemporaryFile(delete=False, suffix='.txt', mode='w', encoding='utf-8') as temp_file:
+        file_path = temp_file.name
+        temp_file.write("\n".join(formatted_texts))
+    
+    return file_path
 
 # Function to format timestamp
 def format_timestamp(seconds):
@@ -137,11 +143,8 @@ def main():
                     transcript = transcripts.get(video_id)
                     video_links[video_title]["transcript"] = transcript
 
-            # Define the path for the formatted text file
-            file_path = 'output_transcripts.txt'
-            
-            # Process transcripts and generate the file
-            process_transcripts(video_links, file_path)
+            # Process transcripts and get path for the formatted text file
+            file_path = process_transcripts(video_links)
             
             # Provide download link for the processed file
             with open(file_path, 'r', encoding='utf-8') as file:
