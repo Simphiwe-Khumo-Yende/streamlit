@@ -8,7 +8,7 @@ from youtube_transcript_api._errors import (
 import tempfile
 import os
 import json
-from datetime import timedelta  # Import timedelta here
+from datetime import timedelta
 
 # Function to extract title
 def extract_title(video_info):
@@ -92,8 +92,8 @@ def process_transcripts(video_links):
             formatted_texts.append("")
 
     # Create a temporary file to store the processed transcripts
-    with tempfile.NamedTemporaryFile(delete=False, suffix='.txt') as temp_file:
-        temp_file.write("\n".join(formatted_texts).encode('utf-8'))
+    with tempfile.NamedTemporaryFile(delete=False, suffix='.txt', mode='w', encoding='utf-8') as temp_file:
+        temp_file.write("\n".join(formatted_texts))
         temp_file_path = temp_file.name
 
     return temp_file_path
