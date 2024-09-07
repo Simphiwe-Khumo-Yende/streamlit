@@ -5,10 +5,7 @@ from youtube_transcript_api._errors import (
     NotTranslatable, TranscriptsDisabled, VideoUnavailable, InvalidVideoId,
     NoTranscriptAvailable, NoTranscriptFound, TooManyRequests
 )
-import tempfile
 import os
-import json
-from datetime import timedelta
 
 # Function to extract title
 def extract_title(video_info):
@@ -43,8 +40,8 @@ def get_transcripts(video_ids):
 
     return transcripts
 
-# Function to process transcripts and write to a temporary file
-def process_transcripts(video_links):
+# Function to process transcripts and generate a file
+def process_transcripts(video_links, file_path):
     formatted_texts = []
     
     for title, details in video_links.items():
@@ -68,7 +65,6 @@ def process_transcripts(video_links):
 
         for entry in transcript:
             if not isinstance(entry, dict) or 'start' not in entry or 'text' not in entry:
-                formatted_texts.append(f"Unexpected entry format: {entry}")
                 continue
 
             start = entry.get('start', 0)
@@ -91,13 +87,11 @@ def process_transcripts(video_links):
             formatted_texts.append(" ".join(current_text))
             formatted_texts.append("")
 
-    # Create a temporary file to store the processed transcripts
-    with tempfile.NamedTemporaryFile(delete=False, suffix='.txt', mode='w', encoding='utf-8') as temp_file:
-        temp_file.write("\n".join(formatted_texts))
-        temp_file_path = temp_file.name
+    # Write the formatted text to the specified file path
+    with open(file_path, 'w', encoding='utf-8') as file:
+        file.write("\n".join(formatted_texts))
 
-    return temp_file_path
-
+# Function to format timestamp
 def format_timestamp(seconds):
     """Formats timestamp into HH:MM:SS without milliseconds."""
     td = timedelta(seconds=seconds)
@@ -143,23 +137,22 @@ def main():
                     transcript = transcripts.get(video_id)
                     video_links[video_title]["transcript"] = transcript
 
-            # Process transcripts and provide a download link
-            temp_file_path = process_transcripts(video_links)
+            # Define the path for the formatted text file
+            file_path = 'output_transcripts.txt'
             
-            if os.path.exists(temp_file_path):
-                # Provide download link for the processed file
-                with open(temp_file_path, 'r', encoding='utf-8') as file:
-                    processed_text = file.read()
-                st.download_button(
-                    label="Download Processed Transcripts",
-                    data=processed_text,
-                    file_name='output_transcripts.txt',
-                    mime='text/plain'
-                )
-                # Optionally, clean up the temporary file
-                os.remove(temp_file_path)
-            else:
-                st.error("Failed to process transcripts.")
-    
+            # Process transcripts and generate the file
+            process_transcripts(video_links, file_path)
+            
+            # Provide download link for the processed file
+            with open(file_path, 'r', encoding='utf-8') as file:
+                processed_text = file.read()
+                
+            st.download_button(
+                label="Download Processed Transcripts",
+                data=processed_text,
+                file_name='output_transcripts.txt',
+                mime='text/plain'
+            )
+
 if __name__ == "__main__":
     main()
