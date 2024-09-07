@@ -1,0 +1,30 @@
+2024-09-07 11:49:08,375 - Starting transcript processing...
+2024-09-07 11:49:08,377 - Transcript for conera brass band - Oh love that wilt not let me go is not in expected format.
+2024-09-07 11:49:08,377 - Transcript for 1. Tsala ya mannete (2001) is not in expected format.
+2024-09-07 11:49:08,377 - Transcript for 9. Sediba (2001) is not in expected format.
+2024-09-07 11:49:08,377 - Transcript for 8. Ke se ke utlwile (2001) is not in expected format.
+2024-09-07 11:49:08,378 - Transcript for 7. ke lengolo (2001) is not in expected format.
+2024-09-07 11:49:08,378 - Transcript for 6. Ha le mpotsa tshepo ya ka (2001) is not in expected format.
+2024-09-07 11:49:08,379 - Processed transcript for 5. i've got the message (2001).
+2024-09-07 11:49:08,379 - Transcript for 4. Tsatsi la sabata (2001) is not in expected format.
+2024-09-07 11:49:08,379 - Processed transcript for 3.  Duduetsang Tjhaba Tsohle (2001).
+2024-09-07 11:49:08,380 - Transcript for 2. Ezulwini (2001) is not in expected format.
+2024-09-07 11:49:08,380 - Transcript for 10. Messiya (2001) is not in expected format.
+2024-09-07 11:49:08,380 - Transcript for 4_Baratwa ba Jesu is not in expected format.
+2024-09-07 11:49:08,380 - Transcript for 3_Faphang Jesu ka dithoko is not in expected format.
+2024-09-07 11:49:08,380 - Transcript for 5_Ho Ntate, Mora le Moya. is not in expected format.
+2024-09-07 11:49:08,380 - Transcript for 1_Moruo wa lehodimo is not in expected format.
+2024-09-07 11:49:08,380 - Transcript for 6_Dumelang bana ba ntate is not in expected format.
+2024-09-07 11:49:08,380 - Transcript for 2_Mahlohonolo a matle is not in expected format.
+2024-09-07 11:49:08,380 - Transcript for 10_He, banyorilweng is not in expected format.
+2024-09-07 11:49:08,380 - Transcript for 9_Hamba Satan is not in expected format.
+2024-09-07 11:49:08,380 - Transcript for 7_Ntate ya mohau is not in expected format.
+2024-09-07 11:49:08,381 - Transcript for 8_E joale ke tla oroha is not in expected format.
+2024-09-07 11:49:08,381 - Transcript for Conera Brass Band - Ho uena re tlisa lillo is not in expected format.
+2024-09-07 11:49:08,381 - Transcript for Conera Brass Band - Kenale Molisa @Evaton2019 is not in expected format.
+2024-09-07 11:49:08,381 - Transcript for Conera Brass band - Ho fedile ke lehlohonolo #Eipc_Arrival @2019 is not in expected format.
+2024-09-07 11:49:08,381 - Transcript for Conera Brass Band - Mmele pelo le moya #We're_Music is not in expected format.
+2024-09-07 11:49:08,381 - Transcript for Conera brass band ft Nellmapius Brass band #Profound is not in expected format.
+2024-09-07 11:49:08,381 - Transcript for Conera brass band - Bonang Lerato la Jeso @Motlollo - #we're Music is not in expected format.
+2024-09-07 11:49:08,381 - Transcript for Conera Brass band ft Nellmapius Brass band #QualityMusic is not in expected format.
+2024-09-07 11:49:08,381 - Formatted text has been written to /home/wtc1/Music/streamlit app/raw_data/output_transcripts.txt
