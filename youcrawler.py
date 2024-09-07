@@ -1,20 +1,16 @@
 import streamlit as st
-import json
-import os
 import scrapetube
-import utils
 from youtube_transcript_api import YouTubeTranscriptApi
 from youtube_transcript_api._errors import (
     NotTranslatable, TranscriptsDisabled, VideoUnavailable, InvalidVideoId,
     NoTranscriptAvailable, NoTranscriptFound, TooManyRequests
 )
+import json
+import os
+from utils import process_transcripts
 
-# Define base directory
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-RAW_DATA_DIR = os.getenv('RAW_DATA_DIR', os.path.join(BASE_DIR, 'raw_data'))
-
+# Function to extract title
 def extract_title(video_info):
-    """Extracts the title from the nested video info dictionary."""
     try:
         title_parts = video_info.get('title', {}).get('runs', [{}])
         title = title_parts[0].get('text', 'No title available')
@@ -22,92 +18,90 @@ def extract_title(video_info):
     except (AttributeError, IndexError, KeyError):
         return 'No title available'
 
+# Function to fetch transcripts
 def get_transcripts(video_ids):
     transcripts = {}
-    for video_id in video_ids:
-        try:
-            transcript = YouTubeTranscriptApi.get_transcript(video_id)
-            transcripts[video_id] = transcript
-        except (VideoUnavailable, TranscriptsDisabled, NotTranslatable, InvalidVideoId, NoTranscriptAvailable, NoTranscriptFound, TooManyRequests) as e:
-            transcripts[video_id] = f"Error: {e}"
-        except Exception as e:
-            transcripts[video_id] = f"Error: {e}"
+    total_videos = len(video_ids)
+    with st.spinner("Fetching transcripts..."):
+        # Initialize progress bar
+        progress_bar = st.progress(0)
+        
+        for idx, video_id in enumerate(video_ids):
+            try:
+                transcript = YouTubeTranscriptApi.get_transcript(video_id)
+                transcripts[video_id] = transcript
+            except (VideoUnavailable, TranscriptsDisabled, NotTranslatable, InvalidVideoId,
+                    NoTranscriptAvailable, NoTranscriptFound, TooManyRequests) as e:
+                transcripts[video_id] = f"Error: {e}"
+            except Exception as e:
+                transcripts[video_id] = f"Unexpected Error: {e}"
+            
+            # Update progress bar
+            progress = (idx + 1) / total_videos
+            progress_bar.progress(progress)
+
     return transcripts
 
+# Streamlit interface
 def main():
-    st.title("YouTube Video Transcripts Processor")
+    st.title("YouCrawler")
 
-    # Step 1: Prompt for Username and Content Type
-    st.sidebar.header("YouTube Channel Details")
-    username = st.sidebar.text_input("YouTube Channel Username")
-    content_type = st.sidebar.selectbox("Content Type", ["videos", "shorts"])
-
-    if st.sidebar.button("Fetch Videos"):
+    # Input for user
+    username = st.text_input("YouTube Channel Username")
+    content_type = st.selectbox("Content Type", ["videos", "streams"])
+    
+    if st.button("Fetch Data"):
         if username:
-            with st.spinner("Fetching video data..."):
-                try:
-                    videos = scrapetube.get_channel(channel_username=username, content_type=content_type)
-                except Exception as e:
-                    st.error(f"Error fetching video data: {e}")
-                    return
+            st.write("Fetching video data...")
+            videos = scrapetube.get_channel(channel_username=username, content_type=content_type)
 
-                video_links = {}
-                video_ids = []
+            video_links = {}
+            video_ids = []
 
-                for video in videos:
-                    video_id = video.get('videoId')
-                    video_title = extract_title(video)
+            for video in videos:
+                video_id = video.get('videoId')
+                video_title = extract_title(video)
+                video_link = f"https://www.youtube.com/watch?v={video_id}"
 
-                    if not isinstance(video_title, str):
-                        video_title = 'No title available'
+                video_links[video_title] = {
+                    "link": video_link,
+                    "videoId": video_id,
+                    "transcript": None
+                }
+                video_ids.append(video_id)
 
-                    video_link = f"https://www.youtube.com/watch?v={video_id}"
+            # Fetch transcripts and show progress
+            transcripts = get_transcripts(video_ids)
 
-                    video_links[video_title] = {
-                        "link": video_link,
-                        "videoId": video_id,
-                        "transcript": None
-                    }
-                    video_ids.append(video_id)
+            # Update video_links with transcripts
+            for video_title, video_info in video_links.items():
+                video_id = video_info.get('videoId')
+                if video_id:
+                    transcript = transcripts.get(video_id)
+                    video_links[video_title]["transcript"] = transcript
 
-                with st.spinner("Fetching transcripts..."):
-                    transcripts = get_transcripts(video_ids)
+            # Save the video links with transcripts to a JSON file
+            json_file_path = 'video_links_with_transcripts.json'
+            with open(json_file_path, 'w', encoding='utf-8') as json_file:
+                json.dump(video_links, json_file, indent=4, ensure_ascii=False)
 
-                for video_title, video_info in video_links.items():
-                    video_id = video_info.get('videoId')
-                    if video_id:
-                        transcript = transcripts.get(video_id)
-                        video_links[video_title]["transcript"] = transcript
-
-                json_file_path = os.path.join(RAW_DATA_DIR, 'video_links_with_transcripts.json')
-                try:
-                    with open(json_file_path, 'w', encoding='utf-8') as json_file:
-                        json.dump(video_links, json_file, indent=4, ensure_ascii=False)
-                    st.success("Data successfully saved. Now you can process the transcripts.")
-                except IOError as e:
-                    st.error(f"Error writing JSON file: {e}")
-                    return
-
-                # Display the data
-                st.json(video_links)
-                st.session_state.json_file_path = json_file_path
-        else:
-            st.error("Please enter a valid YouTube channel username.")
-
-    if 'json_file_path' in st.session_state:
-        # Step 2: Process Transcripts
-        st.header("Process Transcripts")
-        if st.button("Process Transcripts"):
-            json_file_path = st.session_state.json_file_path
-            output_text_file = os.path.join(RAW_DATA_DIR, 'output_transcripts.txt')
-
-            result = utils.process_transcripts(open(json_file_path).read(), output_text_file)
-
-            if result == "Processing complete":
-                st.success("Transcripts processed successfully.")
-                st.markdown(f"[Download the file](./{output_text_file})")
-            else:
-                st.error(result)
+            # Button to process transcripts
+            if st.button("Process Transcripts"):
+                output_file_path = 'output_transcripts.txt'
+                process_transcripts(json_file_path, output_file_path)
+                
+                if os.path.exists(output_file_path):
+                    # Provide download link for the processed file
+                    with open(output_file_path, 'r', encoding='utf-8') as file:
+                        processed_text = file.read()
+                    st.download_button(
+                        label="Download",
+                        data=processed_text,
+                        file_name='output_transcripts.txt',
+                        mime='text/plain'
+                    )
+                else:
+                    st.error("Failed to process transcripts.")
 
 if __name__ == "__main__":
     main()
