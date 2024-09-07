@@ -5,9 +5,10 @@ from youtube_transcript_api._errors import (
     NotTranslatable, TranscriptsDisabled, VideoUnavailable, InvalidVideoId,
     NoTranscriptAvailable, NoTranscriptFound, TooManyRequests
 )
-import json
+import tempfile
 import os
-from utils import process_transcripts
+import json
+from datetime import timedelta  # Import timedelta here
 
 # Function to extract title
 def extract_title(video_info):
@@ -41,6 +42,68 @@ def get_transcripts(video_ids):
             progress_bar.progress(progress)
 
     return transcripts
+
+# Function to process transcripts and write to a temporary file
+def process_transcripts(video_links):
+    formatted_texts = []
+    
+    for title, details in video_links.items():
+        link = details.get('link', 'No link available')
+        transcript = details.get('transcript', None)
+        
+        if transcript == "Transcript not available":
+            formatted_texts.append(f"Title: {title}")
+            formatted_texts.append(f"Link: {link}")
+            formatted_texts.append("\nTranscript not available.\n")
+            continue
+
+        if isinstance(transcript, str):
+            continue
+        
+        formatted_texts.append(f"Title: {title}")
+        formatted_texts.append(f"Link: {link}\n")
+        
+        last_time = 0
+        current_text = []
+
+        for entry in transcript:
+            if not isinstance(entry, dict) or 'start' not in entry or 'text' not in entry:
+                formatted_texts.append(f"Unexpected entry format: {entry}")
+                continue
+
+            start = entry.get('start', 0)
+            text = entry.get('text', '')
+            
+            start_time = format_timestamp(start)
+            
+            if start > last_time + 60:
+                if current_text:
+                    formatted_texts.append(f"(Start: {format_timestamp(last_time)})")
+                    formatted_texts.append(" ".join(current_text))
+                    formatted_texts.append("")
+                current_text = []
+                last_time = start
+            
+            current_text.append(text)
+        
+        if current_text:
+            formatted_texts.append(f"(Start: {format_timestamp(last_time)})")
+            formatted_texts.append(" ".join(current_text))
+            formatted_texts.append("")
+
+    # Create a temporary file to store the processed transcripts
+    with tempfile.NamedTemporaryFile(delete=False, suffix='.txt') as temp_file:
+        temp_file.write("\n".join(formatted_texts).encode('utf-8'))
+        temp_file_path = temp_file.name
+
+    return temp_file_path
+
+def format_timestamp(seconds):
+    """Formats timestamp into HH:MM:SS without milliseconds."""
+    td = timedelta(seconds=seconds)
+    hours, remainder = divmod(td.seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    return f"{hours:02}:{minutes:02}:{seconds:02}"
 
 # Streamlit interface
 def main():
@@ -80,28 +143,23 @@ def main():
                     transcript = transcripts.get(video_id)
                     video_links[video_title]["transcript"] = transcript
 
-            # Save the video links with transcripts to a JSON file
-            json_file_path = 'video_links_with_transcripts.json'
-            with open(json_file_path, 'w', encoding='utf-8') as json_file:
-                json.dump(video_links, json_file, indent=4, ensure_ascii=False)
-
-            # Button to process transcripts
-            if st.button("Process Transcripts"):
-                output_file_path = 'output_transcripts.txt'
-                process_transcripts(json_file_path, output_file_path)
-                
-                if os.path.exists(output_file_path):
-                    # Provide download link for the processed file
-                    with open(output_file_path, 'r', encoding='utf-8') as file:
-                        processed_text = file.read()
-                    st.download_button(
-                        label="Download",
-                        data=processed_text,
-                        file_name='output_transcripts.txt',
-                        mime='text/plain'
-                    )
-                else:
-                    st.error("Failed to process transcripts.")
-
+            # Process transcripts and provide a download link
+            temp_file_path = process_transcripts(video_links)
+            
+            if os.path.exists(temp_file_path):
+                # Provide download link for the processed file
+                with open(temp_file_path, 'r', encoding='utf-8') as file:
+                    processed_text = file.read()
+                st.download_button(
+                    label="Download Processed Transcripts",
+                    data=processed_text,
+                    file_name='output_transcripts.txt',
+                    mime='text/plain'
+                )
+                # Optionally, clean up the temporary file
+                os.remove(temp_file_path)
+            else:
+                st.error("Failed to process transcripts.")
+    
 if __name__ == "__main__":
     main()
