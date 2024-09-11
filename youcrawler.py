@@ -9,6 +9,7 @@ import tempfile
 import os
 import json
 from datetime import timedelta
+import re
 
 # Function to extract title
 def extract_title(video_info):
@@ -105,57 +106,97 @@ def format_timestamp(seconds):
     minutes, seconds = divmod(remainder, 60)
     return f"{hours:02}:{minutes:02}:{seconds:02}"
 
+# Function to extract video IDs from URLs
+def extract_video_ids_from_urls(urls):
+    video_ids = []
+    for url in urls:
+        match = re.search(r"v=([a-zA-Z0-9_-]{11})", url)
+        if match:
+            video_ids.append(match.group(1))
+    return video_ids
+
 # Streamlit interface
 def main():
     st.title("YouCrawler")
 
-    # Input for user
-    username = st.text_input("YouTube Channel Username")
-    content_type = st.selectbox("Content Type", ["videos", "streams"])
-    
-    if st.button("Fetch Data"):
-        if username:
-            st.write("Fetching video data...")
-            videos = scrapetube.get_channel(channel_username=username, content_type=content_type)
+    # Input for user to choose between channel username and custom URLs
+    option = st.selectbox("Choose Input Method", ["YouTube Channel Username", "Custom Video URLs"])
 
-            video_links = {}
-            video_ids = []
+    video_links = {}
 
-            for video in videos:
-                video_id = video.get('videoId')
-                video_title = extract_title(video)
-                video_link = f"https://www.youtube.com/watch?v={video_id}"
+    if option == "YouTube Channel Username":
+        username = st.text_input("YouTube Channel Username")
+        content_type = st.selectbox("Content Type", ["videos", "streams"])
 
-                video_links[video_title] = {
-                    "link": video_link,
-                    "videoId": video_id,
-                    "transcript": None
-                }
-                video_ids.append(video_id)
+        if st.button("Fetch Data"):
+            if username:
+                st.write("Fetching video data...")
+                videos = scrapetube.get_channel(channel_username=username, content_type=content_type)
 
-            # Fetch transcripts and show progress
-            transcripts = get_transcripts(video_ids)
+                video_ids = []
 
-            # Update video_links with transcripts
-            for video_title, video_info in video_links.items():
-                video_id = video_info.get('videoId')
-                if video_id:
-                    transcript = transcripts.get(video_id)
-                    video_links[video_title]["transcript"] = transcript
+                for video in videos:
+                    video_id = video.get('videoId')
+                    video_title = extract_title(video)
+                    video_link = f"https://www.youtube.com/watch?v={video_id}"
 
-            # Process transcripts and get path for the formatted text file
-            file_path = process_transcripts(video_links)
+                    video_links[video_title] = {
+                        "link": video_link,
+                        "videoId": video_id,
+                        "transcript": None
+                    }
+                    video_ids.append(video_id)
+
+                # Fetch transcripts and show progress
+                transcripts = get_transcripts(video_ids)
+
+                # Update video_links with transcripts
+                for video_title, video_info in video_links.items():
+                    video_id = video_info.get('videoId')
+                    if video_id:
+                        transcript = transcripts.get(video_id)
+                        video_links[video_title]["transcript"] = transcript
+
+    elif option == "Custom Video URLs":
+        urls_input = st.text_area("Paste Video URLs (one per line)")
+        urls = urls_input.splitlines()
+
+        if st.button("Fetch Transcripts"):
+            if urls:
+                video_ids = extract_video_ids_from_urls(urls)
+
+                for url, video_id in zip(urls, video_ids):
+                    video_link = f"https://www.youtube.com/watch?v={video_id}"
+                    video_links[video_link] = {
+                        "link": video_link,
+                        "videoId": video_id,
+                        "transcript": None
+                    }
+
+                # Fetch transcripts and show progress
+                transcripts = get_transcripts(video_ids)
+
+                # Update video_links with transcripts
+                for video_link, video_info in video_links.items():
+                    video_id = video_info.get('videoId')
+                    if video_id:
+                        transcript = transcripts.get(video_id)
+                        video_links[video_link]["transcript"] = transcript
+
+    if video_links:
+        # Process transcripts and get path for the formatted text file
+        file_path = process_transcripts(video_links)
+        
+        # Provide download link for the processed file
+        with open(file_path, 'r', encoding='utf-8') as file:
+            processed_text = file.read()
             
-            # Provide download link for the processed file
-            with open(file_path, 'r', encoding='utf-8') as file:
-                processed_text = file.read()
-                
-            st.download_button(
-                label="Download Processed Transcripts",
-                data=processed_text,
-                file_name='output_transcripts.txt',
-                mime='text/plain'
-            )
+        st.download_button(
+            label="Download Processed Transcripts",
+            data=processed_text,
+            file_name='output_transcripts.txt',
+            mime='text/plain'
+        )
 
 if __name__ == "__main__":
     main()
