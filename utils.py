@@ -29,11 +29,11 @@ def process_transcripts(json_file_content, output_file_path):
         return "Error decoding JSON content"
 
     formatted_texts = []
-    
+
     for title, details in data.items():
         link = details.get('link', 'No link available')
         transcript = details.get('transcript', None)
-        
+
         if transcript == "Transcript not available":
             formatted_texts.append(f"Title: {title}")
             formatted_texts.append(f"Link: {link}")
@@ -41,8 +41,8 @@ def process_transcripts(json_file_content, output_file_path):
             logger.info(f"Processed {title} - Transcript not available.")
             continue
 
-        if isinstance(transcript, str):
-            logger.error(f"Transcript for {title} is not in expected format.")
+        if not isinstance(transcript, list):
+            logger.error(f"Transcript for {title} is not in expected list format.")
             continue
         
         formatted_texts.append(f"Title: {title}")
@@ -59,7 +59,7 @@ def process_transcripts(json_file_content, output_file_path):
 
             start = entry.get('start', 0)
             text = entry.get('text', '')
-            
+
             start_time = format_timestamp(start)
             
             if start > last_time + 60:
@@ -89,7 +89,7 @@ def process_transcripts(json_file_content, output_file_path):
         # Debug: Verify file content
         with open(output_file_path, 'r', encoding='utf-8') as file:
             content = file.read()
-        logger.info(f"Content of the file: {content}")
+        logger.info(f"Content of the file:\n{content}")
 
     except IOError as e:
         logger.error(f"Error writing to output file: {e}")
