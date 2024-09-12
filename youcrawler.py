@@ -64,6 +64,7 @@ def extract_title(video_info):
 # Function to fetch transcripts with retry logic
 def get_transcripts(video_ids):
     transcripts = {}
+    failed_videos = []
     total_videos = len(video_ids)
     with st.spinner("Fetching transcripts..."):
         progress_bar = st.progress(0)
@@ -83,16 +84,18 @@ def get_transcripts(video_ids):
                         NoTranscriptAvailable, NoTranscriptFound) as e:
                     transcripts[video_id] = f"Error: {e}"
                     logger.warning(f"Error fetching transcript for video ID {video_id}: {e}")
+                    failed_videos.append(f"https://www.youtube.com/watch?v={video_id}")
                     break
                 except Exception as e:
                     transcripts[video_id] = f"Unexpected Error: {e}"
                     logger.error(f"Unexpected error fetching transcript for video ID {video_id}: {e}")
+                    failed_videos.append(f"https://www.youtube.com/watch?v={video_id}")
                     break
 
             progress = (idx + 1) / total_videos
             progress_bar.progress(progress)
 
-    return transcripts
+    return transcripts, failed_videos
 
 # Function to extract video IDs from URLs
 def extract_video_ids_from_urls(urls):
@@ -103,6 +106,15 @@ def extract_video_ids_from_urls(urls):
             video_ids.append(match.group(1))
     return video_ids
 
+# Function to fetch video information (this needs an actual implementation)
+# def fetch_video_info(video_id):
+#     try:
+#         video_info = scrapetube.get_video_info(video_id)  # Ensure this function exists and works
+#         return video_info
+#     except Exception as e:
+#         logger.warning(f"Could not fetch video info for video ID {video_id}: {e}")
+#         return {}
+
 # Streamlit interface
 def main():
     st.title("YouCrawler")
@@ -110,6 +122,7 @@ def main():
     option = st.selectbox("Choose Input Method", ["YouTube Channel Username", "Custom Video URLs"])
 
     video_links = {}
+    failed_videos = []
 
     if option == "YouTube Channel Username":
         username = st.text_input("YouTube Channel Username")
@@ -134,7 +147,7 @@ def main():
                     }
                     video_ids.append(video_id)
 
-                transcripts = get_transcripts(video_ids)
+                transcripts, failed_videos = get_transcripts(video_ids)
 
                 for video_title, video_info in video_links.items():
                     video_id = video_info.get('videoId')
@@ -145,28 +158,36 @@ def main():
     elif option == "Custom Video URLs":
         urls_input = st.text_area("Paste Video URLs (one per line)")
         urls = urls_input.splitlines()
-
         unique_urls = list(set(urls))
+        video_ids = extract_video_ids_from_urls(unique_urls)
 
         if st.button("Fetch Transcripts"):
             if unique_urls:
-                video_ids = extract_video_ids_from_urls(unique_urls)
-
-                for url, video_id in zip(unique_urls, video_ids):
+                for url in unique_urls:
+                    video_id = re.search(r"v=([a-zA-Z0-9_-]{11})", url).group(1)
                     video_link = f"https://www.youtube.com/watch?v={video_id}"
-                    video_links[video_link] = {
+                    
+                    video_title = f"Title not found for {video_link}"  # Default title if not found
+
+                    video_links[video_title] = {
                         "link": video_link,
                         "videoId": video_id,
                         "transcript": None
                     }
 
-                transcripts = get_transcripts(video_ids)
+                transcripts, failed_videos = get_transcripts(video_ids)
 
-                for video_link, video_info in video_links.items():
+                for video_title, video_info in video_links.items():
                     video_id = video_info.get('videoId')
                     if video_id:
                         transcript = transcripts.get(video_id)
-                        video_links[video_link]["transcript"] = transcript
+                        video_links[video_title]["transcript"] = transcript
+
+    # Show failed video links
+    if failed_videos:
+        st.subheader("Failed to Fetch Transcripts")
+        st.write("The following video links failed to fetch transcripts:")
+        st.text_area("Failed Videos", value="\n".join(failed_videos), height=200)
 
     if video_links:
         json_content = json.dumps(video_links, ensure_ascii=False, indent=4)
