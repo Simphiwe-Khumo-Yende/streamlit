@@ -83,9 +83,9 @@ def process_transcripts(json_file_content, output_file_path):
     try:
         with open(output_file_path, 'w', encoding='utf-8') as file:
             file.write("\n".join(formatted_texts))
+        logging.info(f"Formatted text has been written to {output_file_path}")
     except IOError as e:
         logging.error(f"Error writing to output file: {e}")
         return "Error writing to output file"
 
-    logging.info(f"Formatted text has been written to {output_file_path}")
     return "Processing complete"
