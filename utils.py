@@ -80,6 +80,7 @@ def process_transcripts(json_file_content, output_file_path):
 
         logging.info(f"Processed transcript for {title}.")
 
+    # Write to file with error handling
     try:
         with open(output_file_path, 'w', encoding='utf-8') as file:
             file.write("\n".join(formatted_texts))
