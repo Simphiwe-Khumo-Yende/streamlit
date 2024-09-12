@@ -5,11 +5,11 @@ from youtube_transcript_api._errors import (
     NotTranslatable, TranscriptsDisabled, VideoUnavailable, InvalidVideoId,
     NoTranscriptAvailable, NoTranscriptFound, TooManyRequests
 )
-import tempfile
-import os
 import json
-from datetime import timedelta
+import tempfile
 import re
+import time  # For rate-limiting retries
+from utils import process_transcripts
 
 # Function to extract title
 def extract_title(video_info):
@@ -20,91 +20,36 @@ def extract_title(video_info):
     except (AttributeError, IndexError, KeyError):
         return 'No title available'
 
-# Function to fetch transcripts
+# Function to fetch transcripts with retry logic
 def get_transcripts(video_ids):
     transcripts = {}
     total_videos = len(video_ids)
     with st.spinner("Fetching transcripts..."):
-        # Initialize progress bar
         progress_bar = st.progress(0)
-        
         for idx, video_id in enumerate(video_ids):
-            try:
-                transcript = YouTubeTranscriptApi.get_transcript(video_id)
-                transcripts[video_id] = transcript
-            except (VideoUnavailable, TranscriptsDisabled, NotTranslatable, InvalidVideoId,
-                    NoTranscriptAvailable, NoTranscriptFound, TooManyRequests) as e:
-                transcripts[video_id] = f"Error: {e}"
-            except Exception as e:
-                transcripts[video_id] = f"Unexpected Error: {e}"
-            
-            # Update progress bar
+            attempt = 0
+            while attempt < 3:
+                try:
+                    transcript = YouTubeTranscriptApi.get_transcript(video_id)
+                    transcripts[video_id] = transcript
+                    break  # Break out of retry loop if successful
+                except TooManyRequests as e:
+                    attempt += 1
+                    wait_time = 2 ** attempt  # Exponential backoff
+                    st.warning(f"Rate limit hit. Retrying in {wait_time} seconds...")
+                    time.sleep(wait_time)
+                except (VideoUnavailable, TranscriptsDisabled, NotTranslatable, InvalidVideoId,
+                        NoTranscriptAvailable, NoTranscriptFound) as e:
+                    transcripts[video_id] = f"Error: {e}"
+                    break
+                except Exception as e:
+                    transcripts[video_id] = f"Unexpected Error: {e}"
+                    break
+
             progress = (idx + 1) / total_videos
             progress_bar.progress(progress)
 
     return transcripts
-
-# Function to process transcripts and generate a file
-def process_transcripts(video_links):
-    formatted_texts = []
-    
-    for title, details in video_links.items():
-        link = details.get('link', 'No link available')
-        transcript = details.get('transcript', None)
-        
-        if transcript == "Transcript not available":
-            formatted_texts.append(f"Title: {title}")
-            formatted_texts.append(f"Link: {link}")
-            formatted_texts.append("\nTranscript not available.\n")
-            continue
-
-        if isinstance(transcript, str):
-            continue
-        
-        formatted_texts.append(f"Title: {title}")
-        formatted_texts.append(f"Link: {link}\n")
-        
-        last_time = 0
-        current_text = []
-
-        for entry in transcript:
-            if not isinstance(entry, dict) or 'start' not in entry or 'text' not in entry:
-                continue
-
-            start = entry.get('start', 0)
-            text = entry.get('text', '')
-            
-            start_time = format_timestamp(start)
-            
-            if start > last_time + 60:
-                if current_text:
-                    formatted_texts.append(f"(Start: {format_timestamp(last_time)})")
-                    formatted_texts.append(" ".join(current_text))
-                    formatted_texts.append("")
-                current_text = []
-                last_time = start
-            
-            current_text.append(text)
-        
-        if current_text:
-            formatted_texts.append(f"(Start: {format_timestamp(last_time)})")
-            formatted_texts.append(" ".join(current_text))
-            formatted_texts.append("")
-
-    # Create a temporary file
-    with tempfile.NamedTemporaryFile(delete=False, suffix='.txt', mode='w', encoding='utf-8') as temp_file:
-        file_path = temp_file.name
-        temp_file.write("\n".join(formatted_texts))
-    
-    return file_path
-
-# Function to format timestamp
-def format_timestamp(seconds):
-    """Formats timestamp into HH:MM:SS without milliseconds."""
-    td = timedelta(seconds=seconds)
-    hours, remainder = divmod(td.seconds, 3600)
-    minutes, seconds = divmod(remainder, 60)
-    return f"{hours:02}:{minutes:02}:{seconds:02}"
 
 # Function to extract video IDs from URLs
 def extract_video_ids_from_urls(urls):
@@ -119,7 +64,6 @@ def extract_video_ids_from_urls(urls):
 def main():
     st.title("YouCrawler")
 
-    # Input for user to choose between channel username and custom URLs
     option = st.selectbox("Choose Input Method", ["YouTube Channel Username", "Custom Video URLs"])
 
     video_links = {}
@@ -147,10 +91,8 @@ def main():
                     }
                     video_ids.append(video_id)
 
-                # Fetch transcripts and show progress
                 transcripts = get_transcripts(video_ids)
 
-                # Update video_links with transcripts
                 for video_title, video_info in video_links.items():
                     video_id = video_info.get('videoId')
                     if video_id:
@@ -161,11 +103,14 @@ def main():
         urls_input = st.text_area("Paste Video URLs (one per line)")
         urls = urls_input.splitlines()
 
-        if st.button("Fetch Transcripts"):
-            if urls:
-                video_ids = extract_video_ids_from_urls(urls)
+        # Remove duplicate URLs
+        unique_urls = list(set(urls))
 
-                for url, video_id in zip(urls, video_ids):
+        if st.button("Fetch Transcripts"):
+            if unique_urls:
+                video_ids = extract_video_ids_from_urls(unique_urls)
+
+                for url, video_id in zip(unique_urls, video_ids):
                     video_link = f"https://www.youtube.com/watch?v={video_id}"
                     video_links[video_link] = {
                         "link": video_link,
@@ -173,10 +118,8 @@ def main():
                         "transcript": None
                     }
 
-                # Fetch transcripts and show progress
                 transcripts = get_transcripts(video_ids)
 
-                # Update video_links with transcripts
                 for video_link, video_info in video_links.items():
                     video_id = video_info.get('videoId')
                     if video_id:
@@ -184,19 +127,25 @@ def main():
                         video_links[video_link]["transcript"] = transcript
 
     if video_links:
+        json_content = json.dumps(video_links, ensure_ascii=False, indent=4)
+
         # Process transcripts and get path for the formatted text file
-        file_path = process_transcripts(video_links)
-        
-        # Provide download link for the processed file
-        with open(file_path, 'r', encoding='utf-8') as file:
-            processed_text = file.read()
-            
-        st.download_button(
-            label="Download Processed Transcripts",
-            data=processed_text,
-            file_name='output_transcripts.txt',
-            mime='text/plain'
-        )
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.txt', mode='w', encoding='utf-8') as temp_file:
+            output_file_path = temp_file.name
+        result = process_transcripts(json_content, output_file_path)
+
+        if result == "Processing complete":
+            with open(output_file_path, 'r', encoding='utf-8') as file:
+                processed_text = file.read()
+
+            st.download_button(
+                label="Download Processed Transcripts",
+                data=processed_text,
+                file_name='output_transcripts.txt',
+                mime='text/plain'
+            )
+        else:
+            st.error(f"Error in processing: {result}")
 
 if __name__ == "__main__":
     main()
