@@ -1,7 +1,10 @@
 import json
-from datetime import timedelta
-import logging
 import os
+from datetime import timedelta
+from streamlit.logger import get_logger
+
+# Initialize the logger
+logger = get_logger(__name__)
 
 def format_timestamp(seconds):
     """Formats timestamp into HH:MM:SS without milliseconds."""
@@ -16,17 +19,13 @@ def process_transcripts(json_file_content, output_file_path):
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
-    # Set up logging
-    log_file_path = os.path.join(output_dir, 'process_log.txt')
-    logging.basicConfig(filename=log_file_path, level=logging.INFO, format='%(asctime)s - %(message)s')
-    
-    logging.info("Starting transcript processing...")
+    logger.info("Starting transcript processing...")
 
     # Check if the JSON content is valid
     try:
         data = json.loads(json_file_content)
     except json.JSONDecodeError as e:
-        logging.error(f"Error decoding JSON content: {e}")
+        logger.error(f"Error decoding JSON content: {e}")
         return "Error decoding JSON content"
 
     formatted_texts = []
@@ -39,11 +38,11 @@ def process_transcripts(json_file_content, output_file_path):
             formatted_texts.append(f"Title: {title}")
             formatted_texts.append(f"Link: {link}")
             formatted_texts.append("\nTranscript not available.\n")
-            logging.info(f"Processed {title} - Transcript not available.")
+            logger.info(f"Processed {title} - Transcript not available.")
             continue
 
         if isinstance(transcript, str):
-            logging.error(f"Transcript for {title} is not in expected format.")
+            logger.error(f"Transcript for {title} is not in expected format.")
             continue
         
         formatted_texts.append(f"Title: {title}")
@@ -55,7 +54,7 @@ def process_transcripts(json_file_content, output_file_path):
         for entry in transcript:
             if not isinstance(entry, dict) or 'start' not in entry or 'text' not in entry:
                 formatted_texts.append(f"Unexpected entry format: {entry}")
-                logging.error(f"Unexpected entry format for {title}: {entry}")
+                logger.error(f"Unexpected entry format for {title}: {entry}")
                 continue
 
             start = entry.get('start', 0)
@@ -78,22 +77,22 @@ def process_transcripts(json_file_content, output_file_path):
             formatted_texts.append(" ".join(current_text))
             formatted_texts.append("")
 
-        logging.info(f"Processed transcript for {title}.")
+        logger.info(f"Processed transcript for {title}.")
 
     # Write to file with error handling
     try:
         with open(output_file_path, 'w', encoding='utf-8') as file:
             file.write("\n".join(formatted_texts))
             file.flush()  # Ensure all data is written to disk
-        logging.info(f"Formatted text has been written to {output_file_path}")
+        logger.info(f"Formatted text has been written to {output_file_path}")
 
         # Debug: Verify file content
         with open(output_file_path, 'r', encoding='utf-8') as file:
             content = file.read()
-        logging.info(f"Content of the file: {content}")
+        logger.info(f"Content of the file: {content}")
 
     except IOError as e:
-        logging.error(f"Error writing to output file: {e}")
+        logger.error(f"Error writing to output file: {e}")
         return "Error writing to output file"
 
     return "Processing complete"

@@ -12,6 +12,10 @@ import time
 import os
 import threading
 from utils import process_transcripts
+from streamlit.logger import get_logger
+
+# Initialize the Streamlit logger
+logger = get_logger(__name__)
 
 class AutoDeletingTempFile:
     def __init__(self, suffix='', mode='w', encoding='utf-8', lifetime_seconds=60):
@@ -33,7 +37,7 @@ class AutoDeletingTempFile:
             if time.time() - self.creation_time > self.lifetime_seconds:
                 if os.path.exists(self.file_path):
                     os.remove(self.file_path)
-                    print(f"Temporary file {self.file_path} deleted after {self.lifetime_seconds} seconds.")
+                    logger.info(f"Temporary file {self.file_path} deleted after {self.lifetime_seconds} seconds.")
                 break
             time.sleep(1)
 
@@ -54,6 +58,7 @@ def extract_title(video_info):
         title = title_parts[0].get('text', 'No title available')
         return title
     except (AttributeError, IndexError, KeyError):
+        logger.error("Error extracting title from video info.")
         return 'No title available'
 
 # Function to fetch transcripts with retry logic
@@ -77,9 +82,11 @@ def get_transcripts(video_ids):
                 except (VideoUnavailable, TranscriptsDisabled, NotTranslatable, InvalidVideoId,
                         NoTranscriptAvailable, NoTranscriptFound) as e:
                     transcripts[video_id] = f"Error: {e}"
+                    logger.warning(f"Error fetching transcript for video ID {video_id}: {e}")
                     break
                 except Exception as e:
                     transcripts[video_id] = f"Unexpected Error: {e}"
+                    logger.error(f"Unexpected error fetching transcript for video ID {video_id}: {e}")
                     break
 
             progress = (idx + 1) / total_videos
@@ -167,19 +174,26 @@ def main():
         # Create an auto-deleting temporary file
         with AutoDeletingTempFile(suffix='.txt', lifetime_seconds=60) as temp_file:
             output_file_path = temp_file.get_file_path()
+            logger.info(f"Temporary file path: {output_file_path}")
             result = process_transcripts(json_content, output_file_path)
 
-            if result == "Processing complete":
-                with open(output_file_path, 'r', encoding='utf-8') as file:
-                    processed_text = file.read()
+            logger.info(f"Processing result: {result}")
 
-                # Provide download button with the same file name as the temporary file
-                st.download_button(
-                    label="Download Processed Transcripts",
-                    data=processed_text,
-                    file_name=os.path.basename(output_file_path),
-                    mime='text/plain'
-                )
+            if result == "Processing complete":
+                try:
+                    with open(output_file_path, 'r', encoding='utf-8') as file:
+                        processed_text = file.read()
+                        logger.info(f"Processed text content: {processed_text[:500]}")  # Display first 500 chars for debugging
+
+                    # Provide download button with the same file name as the temporary file
+                    st.download_button(
+                        label="Download Processed Transcripts",
+                        data=processed_text,
+                        file_name=os.path.basename(output_file_path),
+                        mime='text/plain'
+                    )
+                except IOError as e:
+                    logger.error(f"Error reading processed file: {e}")
 
 if __name__ == "__main__":
     main()
