@@ -8,7 +8,8 @@ from youtube_transcript_api._errors import (
 import json
 import tempfile
 import re
-import time  # For rate-limiting retries
+import time
+import os
 from utils import process_transcripts
 
 # Function to extract title
@@ -32,10 +33,10 @@ def get_transcripts(video_ids):
                 try:
                     transcript = YouTubeTranscriptApi.get_transcript(video_id)
                     transcripts[video_id] = transcript
-                    break  # Break out of retry loop if successful
+                    break
                 except TooManyRequests as e:
                     attempt += 1
-                    wait_time = 2 ** attempt  # Exponential backoff
+                    wait_time = 2 ** attempt
                     st.warning(f"Rate limit hit. Retrying in {wait_time} seconds...")
                     time.sleep(wait_time)
                 except (VideoUnavailable, TranscriptsDisabled, NotTranslatable, InvalidVideoId,
@@ -103,7 +104,6 @@ def main():
         urls_input = st.text_area("Paste Video URLs (one per line)")
         urls = urls_input.splitlines()
 
-        # Remove duplicate URLs
         unique_urls = list(set(urls))
 
         if st.button("Fetch Transcripts"):
@@ -129,10 +129,9 @@ def main():
     if video_links:
         json_content = json.dumps(video_links, ensure_ascii=False, indent=4)
 
-        # Process transcripts and get path for the formatted text file
         with tempfile.NamedTemporaryFile(delete=False, suffix='.txt', mode='w', encoding='utf-8') as temp_file:
             output_file_path = temp_file.name
-        result = process_transcripts(json_content, output_file_path)
+            result = process_transcripts(json_content, output_file_path)
 
         if result == "Processing complete":
             with open(output_file_path, 'r', encoding='utf-8') as file:
@@ -144,6 +143,9 @@ def main():
                 file_name='output_transcripts.txt',
                 mime='text/plain'
             )
+            
+            # Delete the temporary file after download
+            os.remove(output_file_path)
         else:
             st.error(f"Error in processing: {result}")
 
