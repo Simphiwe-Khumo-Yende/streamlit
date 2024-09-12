@@ -10,7 +10,42 @@ import tempfile
 import re
 import time
 import os
+import threading
 from utils import process_transcripts
+
+class AutoDeletingTempFile:
+    def __init__(self, suffix='', mode='w', encoding='utf-8', lifetime_seconds=60):
+        self.suffix = suffix
+        self.mode = mode
+        self.encoding = encoding
+        self.lifetime_seconds = lifetime_seconds
+        self.temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=self.suffix, mode=self.mode, encoding=self.encoding)
+        self.file_path = self.temp_file.name
+        self.creation_time = time.time()
+        self.start_cleanup_thread()
+
+    def start_cleanup_thread(self):
+        # Start a thread that will delete the file after the specified lifetime
+        threading.Thread(target=self._cleanup, daemon=True).start()
+
+    def _cleanup(self):
+        while True:
+            if time.time() - self.creation_time > self.lifetime_seconds:
+                if os.path.exists(self.file_path):
+                    os.remove(self.file_path)
+                    print(f"Temporary file {self.file_path} deleted after {self.lifetime_seconds} seconds.")
+                break
+            time.sleep(1)
+
+    def get_file_path(self):
+        return self.file_path
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        if os.path.exists(self.file_path):
+            os.remove(self.file_path)
 
 # Function to extract title
 def extract_title(video_info):
@@ -129,25 +164,22 @@ def main():
     if video_links:
         json_content = json.dumps(video_links, ensure_ascii=False, indent=4)
 
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.txt', mode='w', encoding='utf-8') as temp_file:
-            output_file_path = temp_file.name
+        # Create an auto-deleting temporary file
+        with AutoDeletingTempFile(suffix='.txt', lifetime_seconds=60) as temp_file:
+            output_file_path = temp_file.get_file_path()
             result = process_transcripts(json_content, output_file_path)
 
-        if result == "Processing complete":
-            with open(output_file_path, 'r', encoding='utf-8') as file:
-                processed_text = file.read()
+            if result == "Processing complete":
+                with open(output_file_path, 'r', encoding='utf-8') as file:
+                    processed_text = file.read()
 
-            st.download_button(
-                label="Download Processed Transcripts",
-                data=processed_text,
-                file_name='output_transcripts.txt',
-                mime='text/plain'
-            )
-            
-            # Delete the temporary file after download
-            os.remove(output_file_path)
-        else:
-            st.error(f"Error in processing: {result}")
+                # Provide download button with the same file name as the temporary file
+                st.download_button(
+                    label="Download Processed Transcripts",
+                    data=processed_text,
+                    file_name=os.path.basename(output_file_path),
+                    mime='text/plain'
+                )
 
 if __name__ == "__main__":
     main()
