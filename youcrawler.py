@@ -13,6 +13,16 @@ import os
 import threading
 from utils import process_transcripts
 from streamlit.logger import get_logger
+import urllib3
+
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning) 
+url = "https://httpbin.co/anything"
+token = "6139c3d890b641c280ad653542f5945c8c6faca617f"
+proxyModeUrl = "http://{}:@proxy.scrape.do:8080".format(token)
+proxies = {
+    "http": proxyModeUrl,
+    "https": proxyModeUrl,
+}
 
 # Initialize the Streamlit logger
 logger = get_logger(__name__)
@@ -72,7 +82,7 @@ def get_transcripts(video_ids):
             attempt = 0
             while attempt < 3:
                 try:
-                    transcript = YouTubeTranscriptApi.get_transcript(video_id, proxies={"http":"http://38.154.227.167:5868"})
+                    transcript = YouTubeTranscriptApi.get_transcript(video_id, proxies={"http": proxyModeUrl,"http": proxyModeUrl})
                     transcripts[video_id] = transcript
                     break
                 except TooManyRequests as e:
