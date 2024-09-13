@@ -45,6 +45,10 @@ def process_transcripts(json_file_content, output_file_path):
             continue
 
         if not isinstance(transcript, list):
+            formatted_texts.append(f"Title: {title}")
+            formatted_texts.append(f"Link: {link}")
+            formatted_texts.append("\nTranscript not available.\n")
+            logger.info(f"Processed {title} - Transcript not available.")
             logger.error(f"Transcript for {title} is not in expected list format.")
             continue
         

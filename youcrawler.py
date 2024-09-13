@@ -82,7 +82,8 @@ def get_transcripts(video_ids):
             attempt = 0
             while attempt < 3:
                 try:
-                    transcript = YouTubeTranscriptApi.get_transcript(video_id, proxies={"http": proxyModeUrl,"http": proxyModeUrl})
+                    languages = []
+                    transcript = YouTubeTranscriptApi.get_transcript(video_id,proxies={"http": proxyModeUrl,"http": proxyModeUrl})
                     transcripts[video_id] = transcript
                     break
                 except TooManyRequests as e:
