@@ -17,7 +17,7 @@ import urllib3
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning) 
 url = "https://httpbin.co/anything"
-token = "6139c3d890b641c280ad653542f5945c8c6faca617f"
+token = "YOUR_KEY"
 proxyModeUrl = "http://{}:@proxy.scrape.do:8080".format(token)
 proxies = {
     "http": proxyModeUrl,
